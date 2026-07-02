@@ -1,6 +1,6 @@
-# Video Downloader API
+# Video Downloader API (Flask)
 
-FastAPI backend using yt-dlp to extract video download links.
+Small Flask backend using `yt-dlp` to extract video download links and proxy downloads.
 
 ## Local Development
 
@@ -8,7 +8,10 @@ FastAPI backend using yt-dlp to extract video download links.
    ```bash
    cd backend
    python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   # On Windows:
+   venv\Scripts\activate
+   # On macOS / Linux:
+   source venv/bin/activate
    ```
 
 2. Install dependencies:
@@ -16,77 +19,59 @@ FastAPI backend using yt-dlp to extract video download links.
    pip install -r requirements.txt
    ```
 
-3. Run the server:
+3. Run the server for development (Flask builtin server):
    ```bash
-   uvicorn main:app --reload --host 0.0.0.0 --port 8000
+   python main.py
    ```
 
-4. The API will be available at `http://localhost:8000`
+4. Or use `gunicorn` (recommended for production/local testing):
+   ```bash
+   gunicorn main:app --bind 0.0.0.0:8000 --workers 1 --threads 4
+   ```
+
+5. The API will be available at `http://localhost:8000`
 
 ## API Endpoints
 
 ### GET /
-Health check endpoint.
-
-### GET /health
-Returns `{"status": "healthy"}`
+Health check endpoint. Returns JSON with `message` and `status`.
 
 ### POST /api/download
 Extract video download information from a URL.
 
-**Request Body:**
+Request body:
 ```json
-{
-  "url": "https://www.youtube.com/watch?v=..."
-}
+{ "url": "https://www.tiktok.com/@.../video/..." }
 ```
 
-**Response:**
+Response (example):
 ```json
 {
   "title": "Video Title",
   "thumbnail": "https://...",
-  "duration": "5:32",
-  "download_url": "https://...",
-  "format": "mp4",
-  "quality": "best"
+  "download_url": "/api/proxy?url=https%3A%2F%2F..."
 }
 ```
 
-## Deployment
+### GET /api/proxy?url=<encoded_url>
+Proxies the video at `<encoded_url>` and streams it to the client with an `attachment` filename.
 
-### Render (Free Tier)
+## Cookies
 
-1. Connect your repository to Render
-2. Use the `render.yaml` file or:
-   - Build Command: `pip install -r requirements.txt`
-   - Start Command: `uvicorn main:app --host 0.0.0.0 --port $PORT`
-3. Set environment to Docker or use nixpacks.toml
+The server reads `cookies.txt` from the backend working directory if present. You may also provide cookies via the `COOKIES_CONTENT` environment variable (useful when deploying).
 
-### Railway
+## Deployment (Railway)
 
-1. Connect your repository to Railway
-2. Railway will auto-detect Python and use nixpacks.toml
-3. The app will deploy automatically
+1. Ensure `backend/requirements.txt` and `backend/Procfile` are present (they are included).
+2. In Railway, add a new project and connect your Git repository.
+3. Railway will detect Python; set the service to use the `backend` directory as the root, or create a separate project for the backend.
+4. Set environment variables (optional):
+   - `COOKIES_CONTENT`: (optional) contents of `cookies.txt` so the container can create the file on start.
+5. Railway will run the `Procfile` command: `gunicorn main:app --bind 0.0.0.0:$PORT --workers 1 --threads 4`.
 
-### Fly.io
+Notes:
+- `yt-dlp` may require extra system dependencies for some extractors; if you encounter extractor-specific errors on Railway, check the build logs and install any missing packages.
+- For production, consider running inside a container and increase `--workers` based on CPU.
 
-1. Install flyctl: `curl -L https://fly.io/install.sh | sh`
-2. Login: `fly auth login`
-3. Launch: `fly launch`
-
-## Environment Variables
-
-No environment variables required for basic operation.
-
-## Supported Platforms
-
-yt-dlp supports 1000+ sites including:
-- YouTube
-- TikTok
-- Instagram
-- Facebook
-- Twitter/X
-- Vimeo
-- Dailymotion
-- And many more...
+## License / Notes
+This project is intended for personal or internal use. Respect the terms of service of target platforms when downloading content.

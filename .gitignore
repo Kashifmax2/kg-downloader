@@ -1,3 +1,12 @@
+venv/
+__pycache__/
+*.pyc
+node_modules/
+.env
+cookies.txt
+dist/
+build/
+.DS_Store
 logs
 *.log
 npm-debug.log*
