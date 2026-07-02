@@ -8,7 +8,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-CORS(app)  # CORS middleware automatic handle ho jayega
+CORS(app, resources={r"/*": {"origins": "*"}}) # CORS ko poori tarah open kar diya
 
 @app.route("/", methods=["GET"])
 def root():
@@ -18,22 +18,36 @@ def root():
 def health_check():
     return jsonify({"status": "healthy"})
 
-@app.route("/api/download", methods=["POST"])
+@app.route("/api/download", methods=["GET", "POST", "OPTIONS"])
 def extract_video():
-    data = request.get_json()
-    if not data or 'url' not in data:
-        return jsonify({"detail": "URL is required"}), 400
+    # CORS Options pre-flight request handle karne ke liye
+    if request.method == "OPTIONS":
+        return jsonify({"status": "ok"}), 200
 
-    url = data['url'].strip()
+    # GET aur POST dono tareeqon se data read karne ka mechanism
+    if request.method == "POST":
+        data = request.get_json() or {}
+        url = data.get('url', '')
+    else:
+        url = request.args.get('url', '')
+
     if not url:
         return jsonify({"detail": "URL is required"}), 400
 
+    url = url.strip()
+
+    # yt-dlp ke options ko update kiya taake TikTok/YouTube blocks bypass ho sakein
     ydl_opts = {
         'quiet': True,
         'no_warnings': True,
         'skip_download': True,
         'format': 'best[ext=mp4]/best',
         'extract_flat': False,
+        'http_headers': {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+        }
     }
 
     try:
@@ -44,7 +58,7 @@ def extract_video():
             if not info:
                 return jsonify({"detail": "Could not extract video information"}), 404
 
-            # Direct download URL
+            # Direct download URL extraction logic
             download_url = info.get('url')
             if not download_url:
                 if 'requested_formats' in info:
@@ -81,8 +95,8 @@ def extract_video():
             })
 
     except Exception as e:
-        logger.error(f"Error: {str(e)}")
-        return jsonify({"detail": f"An error occurred: {str(e)}"}), 500
+        logger.error(f"Error extracting video: {str(e)}")
+        return jsonify({"detail": f"Scraper Error: {str(e)}"}), 500
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000)
